@@ -460,13 +460,6 @@ class DNSServer:
 def dash():
     return HTML_TMEPLATE.replace('{domain}', ROOT_DOMAIN).replace('{token}', API_TOKEN), 200
 
-@app.route('/')
-def index():
-    if request.host == "dnslog.wxyqyh.cn":
-        return redirect(url_for('dash'))
-    else:
-        return redirect(url_for('http_log'),path=request.full_path)
-
 @app.route('/dns')
 @auth.login_required
 def dns_list():
