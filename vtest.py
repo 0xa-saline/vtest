@@ -64,6 +64,9 @@ HTML_TMEPLATE = '''
                     field: 'ip',
                     title: 'Result IP'
                 }, {
+                    field: 'sip',
+                    title: 'Source IP'
+                }, {
                     field: 'insert_time',
                     title: 'Query Time'
                 }]
@@ -311,6 +314,7 @@ class sqlite:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name text,
             domain text,
+            sip text,
             ip text,
             insert_time datetime
         )
@@ -415,13 +419,18 @@ class DNSUDPHandler(SocketServer.BaseRequestHandler):
                 else:
                     REBIND_CACHE.append(tmp)
                     ip = is_ip(ip_1)
+            else:
+                #ip = is_ip(pre_data)
+                d = DNSServer()
+                d.add_record(pre_data, LOCAL_IP)
+                ip = LOCAL_IP
 
             if ROOT_DOMAIN in domain:
                 #name = domain.replace('.' + ROOT_DOMAIN, '')
-                sql = "INSERT INTO dns_log (name,domain,ip,insert_time) \
-                    VALUES(?, ?, ?, datetime(CURRENT_TIMESTAMP,'localtime'))"
+                sql = "INSERT INTO dns_log (name,domain,sip,ip,insert_time) \
+                    VALUES(?, ?, ?, ?, datetime(CURRENT_TIMESTAMP,'localtime'))"
 
-                DB.exec_sql(sql, pre_data, domain, ip)
+                DB.exec_sql(sql, pre_data, domain,str(self.client_address[0]),ip)
             dns.setip(ip)
             print '%s: %s-->%s' % (self.client_address[0], pre_data, ip)
             socket_u.sendto(dns.getbytes(), self.client_address)
@@ -437,15 +446,26 @@ class DNSServer:
         DNSServer.A_map[name] = ip
 
     def start(self):
-        server = SocketServer.UDPServer(("0.0.0.0", 53), DNSUDPHandler)
-        server.serve_forever()
+        try:
+            print "start dns server"
+            server = SocketServer.UDPServer(("0.0.0.0", 53), DNSUDPHandler)
+            server.serve_forever()
+            print "start dns end"
+        except Exception as e:
+            print str(e)
 
 
-@app.route('/')
+@app.route('/dash')
 @auth.login_required
-def index():
+def dash():
     return HTML_TMEPLATE.replace('{domain}', ROOT_DOMAIN).replace('{token}', API_TOKEN), 200
 
+@app.route('/')
+def index():
+    if request.host == "dnslog.wxyqyh.cn":
+        return redirect(url_for('dash'))
+    else:
+        return redirect(url_for('http_log'),path=request.full_path)
 
 @app.route('/dns')
 @auth.login_required
@@ -462,18 +482,17 @@ def dns_list():
         search = ""
     search = "%" + search + "%"
 
-    sql = "SELECT domain,ip,insert_time FROM dns_log where domain like ? order by id desc limit ?,?"
+    sql = "SELECT domain,ip,sip,insert_time FROM dns_log where domain like ? order by id desc limit ?,?"
     rows = DB.exec_sql(sql, search, offset, limit)
     
     for v in rows:
-        result.append({"domain": v[0], "ip": v[1], "insert_time": v[2]})
+        result.append({"domain": v[0], "ip": v[1], "sip": v[2], "insert_time": v[3]})
     sql = "SELECT COUNT(*) FROM dns_log"
     rows = DB.exec_sql(sql)
     total = rows[0][0]
     return jsonify({'total': int(total), 'rows': result})
 
-
-@app.route('/httplog/<path:path>', methods=['GET', 'POST', 'PUT'])
+@app.route('/<path:path>', methods=['GET', 'POST', 'PUT'])
 def http_log(path):
     post_data = request.data
     if post_data == '':
@@ -548,6 +567,7 @@ def mock_list():
         rows = DB.exec_sql(sql)
         total = rows[0][0]
         return jsonify({'total': int(total), 'rows': result})
+
     elif request.method == 'POST':
         # print('POST', request.form)
         args = request.form
@@ -666,11 +686,11 @@ def api_check(action):
 
     result = []
     if action == 'dns':
-        sql = "SELECT domain,ip,insert_time FROM dns_log where domain like ? order by id desc limit ?,?"
+        sql = "SELECT domain,ip,sip,insert_time FROM dns_log where domain like ? order by id desc limit ?,?"
         rows = DB.exec_sql(sql, query, offset, limit)
 
         for v in rows:
-            result.append({"domain": v[0], "ip": v[1], "insert_time": v[2]})
+            result.append({"domain": v[0], "ip": v[1], "sip": v[2],"insert_time": v[3]})
 
     elif action == 'http':
         sql = "SELECT url,headers,data,ip,insert_time FROM http_log where url like ? order by id desc limit ?,?"
