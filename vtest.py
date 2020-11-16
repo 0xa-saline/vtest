@@ -343,7 +343,6 @@ class sqlite:
         self.conn.commit()
         return result
 
-
 class DNSFrame:
     def __init__(self, data):
         (self.id, self.flags, self.quests, self.answers, self.author,
@@ -388,7 +387,6 @@ class DNSFrame:
                           self.author, self.addition)
         res += self.query_bytes + self.answer_bytes
         return res
-
 
 class DNSUDPHandler(SocketServer.BaseRequestHandler):
     def handle(self):
@@ -454,7 +452,6 @@ class DNSServer:
         except Exception as e:
             print str(e)
 
-
 @app.route('/dash')
 @auth.login_required
 def dash():
@@ -496,14 +493,14 @@ def http_log(path):
         request.url,
         json.dumps(dict(request.headers)), post_data, request.remote_addr
     ]
-    print(request.url, post_data, request.remote_addr, dict(
-        request.headers))
-    sql = "INSERT INTO http_log (url,headers,data,ip,insert_time) \
-            VALUES(?, ?, ?, ?, datetime(CURRENT_TIMESTAMP,'localtime'))"
+    if request.url == 'dash' and request.host == "dnslog.dnslog.cn":
+        return redirect(url_for('dash'))
+    elif request.url != 'favicon.ico' or request.url != 'robots.txt':
+        sql = "INSERT INTO http_log (url,headers,data,ip,insert_time) \
+                VALUES(?, ?, ?, ?, datetime(CURRENT_TIMESTAMP,'localtime'))"
 
-    DB.exec_sql(sql, *args)
-    return 'success'
-
+        DB.exec_sql(sql, *args)
+        return 'success'
 
 @app.route('/httplog')
 @auth.login_required
@@ -528,7 +525,6 @@ def http_log_list():
     rows = DB.exec_sql(sql)
     total = rows[0][0]
     return jsonify({'total': int(total), 'rows': result})
-
 
 @app.route('/mock', methods=['GET', 'POST'])
 @auth.login_required
@@ -692,6 +688,17 @@ def api_check(action):
         for v in rows:
             result.append({'url': v[0], 'headers': v[1],
                            'data': v[2], 'ip': v[3], 'insert_time': v[4]})
+
+    elif action == 'clear':
+        #sql = "Delete FROM {table}".format(table=table)
+        sql = "Delete FROM http_log where url like ?"
+        rows = DB.exec_sql(sql, query)
+
+        sql1 = "Delete FROM dns_log where domain like ?"
+        rows1 = DB.exec_sql(sql1, query)
+
+        result.append({'result':'success'})
+
     else:
         return jsonify({'status': '0', 'msg': 'error action, plz http or dns'})
 
@@ -706,7 +713,6 @@ def dns():
     d.add_record('x', LOCAL_IP)
     d.add_record('mock', LOCAL_IP)
     d.start()
-
 
 if __name__ == "__main__":
     msg = '''
