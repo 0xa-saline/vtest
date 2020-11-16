@@ -38,7 +38,10 @@
 新增api功能, 查询记录是否存在, 用于漏洞检测:
 
 - http://login.example.com/api/http?token=token&limit=1&offset=0&q=xxx
+
 - http://login.example.com/api/dns?token=token&limit=1&offset=0&q=xxx
+  清理日志
+- http://login.example.com/api/clear?token=token&limit=1&offset=0&q=xxx
 
 返回结果:
 
